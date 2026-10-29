@@ -128,4 +128,7 @@ button { font: inherit; color: inherit; }
 .about { color: var(--muted); font-size: 14px; }
 .credits { color: var(--muted); font-size: 12px; }
 .credits a, .about a { color: var(--text); }
+.source { margin: 14px 0 0; font-size: 14px; }
+.source a { color: var(--accent); text-decoration: none; }
+.source a:hover { text-decoration: underline; }
 .leaflet-container { font: inherit; }
