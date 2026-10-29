@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b1020">
+<title>Summits</title>
+<meta name="description" content="Name the mountains around you. A 360° horizon computed from open elevation data, with OpenStreetMap peaks and a live camera overlay.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1020'/%3E%3Cpath d='M3 25 L12 11 L17 18 L21 13 L29 25 Z' fill='none' stroke='%23e8ecf5' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<video id="video" playsinline muted autoplay hidden></video>
+<canvas id="view"></canvas>
+
+<header class="bar">
+  <button id="btn-map" class="icon-btn" aria-label="Choose a location">
+    <svg viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Zm0 0v14m6-12v14"/></svg>
+  </button>
+  <button id="place" class="place" aria-label="Choose a location">
+    <span id="place-name">Loading…</span>
+    <span id="place-meta"></span>
+  </button>
+  <button id="btn-gps" class="icon-btn" aria-label="Use my location">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+  </button>
+  <button id="btn-cam" class="icon-btn" aria-label="Camera mode">
+    <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+  </button>
+  <button id="btn-settings" class="icon-btn" aria-label="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
+  </button>
+</header>
+
+<div id="progress" hidden><div class="track"><div class="fill"></div></div><span class="label"></span></div>
+
+<div id="cam-hud" hidden>
+  <span id="cam-heading">—</span>
+  <span class="hint">Drag to align the lines with the ridges. Pinch to fit the zoom.</span>
+  <button id="cam-reset" class="chip">Reset alignment</button>
+</div>
+
+<div id="card" hidden>
+  <button class="close" aria-label="Close">×</button>
+  <div class="name"></div>
+  <div class="facts"></div>
+  <a class="osm" target="_blank" rel="noopener">Open in OpenStreetMap ↗</a>
+</div>
+
+<div id="toast" hidden></div>
+
+<section id="map-sheet" class="sheet" hidden>
+  <div class="sheet-head">
+    <form id="search-form"><input id="search" type="search" placeholder="Search a place or summit" autocomplete="off"></form>
+    <button class="close" data-close aria-label="Close">×</button>
+  </div>
+  <div id="search-results" hidden></div>
+  <div id="map"></div>
+  <div class="sheet-foot">
+    <div class="presets" id="presets"></div>
+    <button id="go" class="primary" disabled>View from here</button>
+  </div>
+</section>
+
+<section id="settings-sheet" class="sheet small" hidden>
+  <div class="sheet-head"><h2>Settings</h2><button class="close" data-close aria-label="Close">×</button></div>
+  <div class="settings-body">
+    <label>Visible range
+      <select id="opt-range">
+        <option value="50">50 km</option>
+        <option value="100">100 km</option>
+        <option value="150" selected>150 km</option>
+        <option value="200">200 km</option>
+      </select>
+    </label>
+    <label>Height above ground
+      <select id="opt-eye">
+        <option value="2" selected>2 m (standing)</option>
+        <option value="10">10 m</option>
+        <option value="30">30 m (tower)</option>
+        <option value="100">100 m</option>
+      </select>
+    </label>
+    <p class="about">The view is computed in your browser from terrain tiles. Ridges come from the elevation model. Names come from OpenStreetMap. In camera mode, phone compasses are often off by 5–10°. Drag the overlay to line it up.</p>
+    <p class="credits">Elevation: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Terrain Tiles</a> (SRTM, Copernicus and others) · Peaks (snapshot <span id="peaks-date">2026</span>) and map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, ODbL · Map style © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a></p>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
+<script src="app.js" type="module"></script>
+</body>
+</html>
