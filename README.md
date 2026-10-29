@@ -4,6 +4,8 @@ Name the mountains around you. Live at https://summits.huy0x.dev.
 
 The app computes the 360° horizon in the browser from open elevation data, labels the visible peaks, and can overlay them on the phone camera.
 
+![The Mont Blanc massif seen from Le Brévent, Chamonix, with Mont Blanc (4807 m), Mont Maudit and the Aiguille du Midi labeled on the skyline](docs/screenshot.png)
+
 ## How it works
 
 - **Terrain**: Terrarium elevation tiles (AWS Open Data: SRTM, Copernicus, EU-DEM and others). Three zoom levels: z13 up to 6 km, z11 up to 40 km, z9 beyond. The Worker proxies them at `/api/tiles/z/x/y.png` and caches them for 30 days at the edge and for a year in the browser.
