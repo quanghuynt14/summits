@@ -7,6 +7,12 @@
 <title>Summits</title>
 <meta name="description" content="Name the mountains around you. A 360° horizon computed from open elevation data, with OpenStreetMap peaks and a live camera overlay.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1020'/%3E%3Cpath d='M3 25 L12 11 L17 18 L21 13 L29 25 Z' fill='none' stroke='%23e8ecf5' stroke-width='2.2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Summits">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -83,7 +89,15 @@
         <option value="100">100 m</option>
       </select>
     </label>
-    <p class="about">The view is computed in your browser from terrain tiles. Ridges come from the elevation model. Names come from GeoNames and OpenStreetMap. In camera mode, phone compasses are often off by 5–10°. Drag the overlay to line it up.</p>
+    <div class="offline">
+      <h3>Offline</h3>
+      <p class="about" id="dl-info"></p>
+      <div class="offline-actions">
+        <button id="dl-area" class="primary">Download this area</button>
+        <button id="dl-clear" class="chip">Delete offline data</button>
+      </div>
+    </div>
+    <p class="about">The view is computed in your browser from terrain tiles. Ridges come from the elevation model. Names come from GeoNames and OpenStreetMap. In camera mode, the overlay aligns itself on the skyline, since phone compasses are often 5–15° off. With a downloaded area, everything but the map works offline.</p>
     <p class="credits">Elevation: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Terrain Tiles</a> (SRTM, Copernicus and others) · Peaks (snapshot <span id="peaks-date">2026</span>): <a href="https://www.geonames.org" target="_blank" rel="noopener">GeoNames</a>, CC BY 4.0, and © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, ODbL · Map © OpenStreetMap, style © <a href="https://opentopomap.org" target="_blank" rel="noopener">OpenTopoMap</a></p>
     <p class="source"><a href="https://github.com/quanghuynt14/summits" target="_blank" rel="noopener">Source code on GitHub ↗</a></p>
   </div>

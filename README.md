@@ -15,6 +15,10 @@ The app computes the 360° horizon in the browser from open elevation data, labe
 - **Camera mode**: rear camera plus device orientation. Heading, pitch and roll come from the W3C rotation matrix; on iOS the heading comes from `webkitCompassHeading`.
 - **Auto-align**: phone compasses drift by 5–15°, more near buildings. `public/align.js` finds the sky/terrain boundary in the camera frame (contrast in 2·B − R, so blue sky stands out from rock and forest). It then searches heading, pitch and zoom corrections until the computed far skyline sits on that boundary. The first lock searches ±25° and must beat every other fit by a clear margin. After that, it tracks drift every 0.6 s. Dragging turns it off; "Reset alignment" turns it back on.
 
+## Offline
+
+`public/sw.js` caches the app. It also keeps every terrain tile and peak cell the app fetches. "Download this area" in settings fills those caches ahead of a trip: every tile the horizon needs for any viewpoint within 10 km, out to the visible range (about 30 MB at 150 km), plus the peak cells. Offline, everything works except the map tiles and place search. When tiles are missing, the app says so instead of drawing flat ground. `manifest.webmanifest` makes the app installable; on iOS, adding it to the home screen keeps the cache from being evicted.
+
 ## Peak data
 
 Built once by `scripts/build-peaks.mjs` from two sources:

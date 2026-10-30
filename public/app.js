@@ -81,8 +81,13 @@ async function fetchPeaks(lat, lon, rKm) {
     peakIndex = fetch("peaks/index.json").then((r) => r.json()).then((j) => {
       $("#peaks-date").textContent = j.built;
       return { ...j, set: new Set(j.cells) };
-    });
+    }).catch((err) => { peakIndex = null; throw err; });
   }
+  const keys = await peakCellKeys(lat, lon, rKm);
+  const lists = await Promise.all(keys.map(loadCell));
+  return lists.flat();
+}
+async function peakCellKeys(lat, lon, rKm) {
   const idx = await peakIndex;
   const C = idx.cell;
   const dLat = (rKm / 111.2) + 0.05;
@@ -95,8 +100,7 @@ async function fetchPeaks(lat, lon, rKm) {
       if (idx.set.has(key)) keys.push(key);
     }
   }
-  const lists = await Promise.all(keys.map(loadCell));
-  return lists.flat();
+  return keys;
 }
 
 let loadSeq = 0;
@@ -134,7 +138,10 @@ async function loadView(loc) {
     hideProgress();
     const meta = `${Math.round(res.h0)} m · ${res.peaks.length} peaks in view · ${state.range} km`;
     setPlace(loc.name || formatLatLon(loc.lat, loc.lon), meta);
-    if (peakError) toast("Peak names are unavailable right now. Ridges still show.");
+    if (res.missing) toast(navigator.onLine === false
+      ? `Offline: ${res.missing} terrain tiles are not saved here. Parts of the skyline are missing.`
+      : `${res.missing} terrain tiles failed to load. Parts of the skyline are missing.`, 6000);
+    else if (peakError) toast("Peak names are unavailable right now. Ridges still show.");
     if (state.firstView && res.peaks.length) {
       state.view.heading = res.peaks[0].az; // face the highest visible summit
       state.view.pitch = Math.max(1, res.peaks[0].alt * 0.6);
@@ -613,11 +620,87 @@ $("#search-form").onsubmit = async (e) => {
 };
 
 // ---------- Settings ----------
-$("#btn-settings").onclick = () => { $("#settings-sheet").hidden = false; };
+$("#btn-settings").onclick = () => { $("#settings-sheet").hidden = false; if (!downloading) updateOfflineInfo(); };
 $("#opt-range").value = String(state.range);
 $("#opt-eye").value = String(state.eye);
 $("#opt-range").onchange = (e) => { state.range = +e.target.value; store.set("range", state.range); if (state.loc) loadView(state.loc); };
 $("#opt-eye").onchange = (e) => { state.eye = +e.target.value; store.set("eye", state.eye); if (state.loc) loadView(state.loc); };
+
+// ---------- Offline ----------
+// "Download this area" saves every terrain tile the horizon needs for any
+// viewpoint within NEAR_KM of the current one, plus the peak cells. The
+// service worker then serves them from the cache.
+const NEAR_KM = 10;
+const TILE_KB = 140;
+const R_EARTH = 6371008.8;
+function areaTiles(lat, lon, rangeKm, nearKm) {
+  const out = [];
+  const maxD = rangeKm * 1000, near = nearKm * 1000;
+  const tx = (lo, z) => Math.floor(((lo + 180) / 360) * 2 ** z);
+  const ty = (la, z) => { const s = Math.sin(la * DEG); return Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 2 ** z); };
+  // Same levels as the horizon worker, widened by the walking radius.
+  for (const [z, d] of [[13, Math.min(6000, maxD)], [11, Math.min(40000, maxD)], [9, maxD]]) {
+    const dLat = ((d + near) / R_EARTH) / DEG;
+    const dLon = dLat / Math.cos(Math.min(85, Math.abs(lat) + dLat) * DEG);
+    for (let y = ty(lat + dLat, z); y <= ty(lat - dLat, z); y++)
+      for (let x = tx(lon - dLon, z); x <= tx(lon + dLon, z); x++) out.push(`/api/tiles/${z}/${x}/${y}.png`);
+  }
+  return out;
+}
+function updateOfflineInfo() {
+  const info = $("#dl-info");
+  if (!("caches" in window) || !navigator.serviceWorker) { info.textContent = "This browser cannot save data for offline use."; $("#dl-area").disabled = true; return; }
+  if (!state.loc) return;
+  const n = areaTiles(state.loc.lat, state.loc.lon, state.range, NEAR_KM).length;
+  info.textContent = `Saves terrain for ${state.range} km around this view, detailed within ${NEAR_KM} km, plus peak names. About ${Math.round(n * TILE_KB / 1024)} MB.`;
+}
+let downloading = false;
+$("#dl-area").onclick = async () => {
+  if (downloading || !state.loc) return;
+  downloading = true;
+  const btn = $("#dl-area"), info = $("#dl-info");
+  btn.disabled = true;
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+    const { lat, lon } = state.loc;
+    const urls = areaTiles(lat, lon, state.range, NEAR_KM);
+    if (!peakIndex) await fetchPeaks(lat, lon, 1).catch(() => {});
+    const cells = (await peakCellKeys(lat, lon, state.range + NEAR_KM)).map((k) => `/peaks/${k}.json`);
+    const tiles = await caches.open("summits-tiles"), peaks = await caches.open("summits-peaks");
+    const jobs = [...cells.map((u) => [peaks, u]), ...urls.map((u) => [tiles, u])];
+    let done = 0, failed = 0, next = 0;
+    const show = () => { info.textContent = `Downloading… ${done} / ${jobs.length}${failed ? ` (${failed} failed)` : ""}`; };
+    show();
+    const run = async () => {
+      while (next < jobs.length) {
+        const [cache, u] = jobs[next++];
+        try {
+          if (!(await cache.match(u))) {
+            const res = await fetch(u);
+            if (!res.ok) throw new Error(res.status);
+            await cache.put(u, res);
+          }
+        } catch { failed++; }
+        done++;
+        if (done % 5 === 0 || done === jobs.length) show();
+      }
+    };
+    await Promise.all(Array.from({ length: 8 }, run));
+    info.textContent = failed
+      ? `Saved ${done - failed} of ${jobs.length} files. ${failed} failed: try again with a better connection.`
+      : `Saved for offline use: ${jobs.length} files. Add Summits to your home screen so the phone keeps them.`;
+  } catch (err) {
+    info.textContent = "Download failed: " + (err.message || err);
+  } finally {
+    downloading = false;
+    btn.disabled = false;
+  }
+};
+$("#dl-clear").onclick = async () => {
+  await caches.delete("summits-tiles");
+  await caches.delete("summits-peaks");
+  $("#dl-info").textContent = "Offline data deleted.";
+};
 
 // ---------- Camera mode ----------
 let stream = null;
@@ -779,6 +862,7 @@ function onOrient(e) {
 }
 
 // ---------- Boot ----------
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch((err) => console.warn("service worker:", err));
 window.addEventListener("resize", resize);
 resize();
 const qs = new URLSearchParams(location.search);

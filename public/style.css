@@ -127,6 +127,10 @@ button { font: inherit; color: inherit; }
   background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit;
 }
 .about { color: var(--muted); font-size: 14px; }
+.offline { margin: 4px 0 16px; padding: 12px 0 14px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.offline h3 { margin: 0 0 4px; font-size: 15px; }
+.offline-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.offline-actions .primary { flex: 1 1 100%; padding: 0 16px; }
 .credits { color: var(--muted); font-size: 12px; }
 .credits a, .about a { color: var(--text); }
 .source { margin: 14px 0 0; font-size: 14px; }

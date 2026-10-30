@@ -39,7 +39,11 @@ function loadTile(z, x, y) {
       }
       return e;
     })
-    .catch(() => null);
+    .catch(() => null)
+    .then((e) => {
+      if (!e) tileCache.delete(key); // retry next time (e.g. back online)
+      return e;
+    });
   tileCache.set(key, p);
   while (tileCache.size > 500) tileCache.delete(tileCache.keys().next().value);
   return p;
@@ -118,15 +122,19 @@ async function prepareLevels(lat, lon, maxD, progress) {
   }
   let done = 0;
   let next = 0;
+  let missing = 0;
   async function runner() {
     while (next < jobs.length) {
       const j = jobs[next++];
-      j.L.tiles[(j.ty - j.L.ty0) * j.L.nx + (j.tx - j.L.tx0)] = (await loadTile(j.L.z, j.tx, j.ty)) || ZERO_TILE;
+      const t = await loadTile(j.L.z, j.tx, j.ty);
+      if (!t) missing++;
+      j.L.tiles[(j.ty - j.L.ty0) * j.L.nx + (j.tx - j.L.tx0)] = t || ZERO_TILE;
       done++;
       if (done % 4 === 0 || done === jobs.length) progress("tiles", done, jobs.length);
     }
   }
   await Promise.all(Array.from({ length: 16 }, runner));
+  levels.missing = missing;
   return levels;
 }
 
@@ -295,7 +303,7 @@ async function run({ lat, lon, eye, altitude, range, cols, peaks, snap = 0 }, pr
   visible.sort((a, b) => (b.ele ?? b.dem) - (a.ele ?? a.dem));
 
   const timing = { tiles: Math.round(tB - tA), rays: Math.round(performance.now() - tB), steps: n };
-  return { offsets, angles, dists, cols, h0, ground, lat, lon, peaks: visible, timing };
+  return { offsets, angles, dists, cols, h0, ground, lat, lon, peaks: visible, timing, missing: levels.missing };
 }
 
 self.onmessage = async (e) => {
