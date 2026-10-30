@@ -61,6 +61,7 @@ button { font: inherit; color: inherit; }
   text-align: center; font-size: 13px; color: var(--muted);
 }
 #cam-heading { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; font-size: 15px; }
+.chip.on { border-color: var(--accent); color: var(--accent); }
 .chip {
   border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
   padding: 6px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;

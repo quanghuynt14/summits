@@ -12,7 +12,8 @@ The app computes the 360° horizon in the browser from open elevation data, labe
 - **Horizon**: `public/horizon-worker.js` runs in a Web Worker. It casts 7,200 rays (one every 0.05°) out to 150 km, with Earth curvature and refraction (k = 0.13). Each column stores the visible surface as (angle, distance) steps.
 - **Rendering**: `public/app.js` fills each screen column from those steps. A pixel is drawn as a ridge line when the terrain just above or beside it is much farther away (≥ 25 % and ≥ 400 m).
 - **Peaks**: static files in `public/peaks/`, one per 2°×2° cell. A peak is labeled when its view angle clears the terrain in front of it.
-- **Camera mode**: rear camera plus device orientation. Heading, pitch and roll come from the W3C rotation matrix; on iOS the heading comes from `webkitCompassHeading`. Drag to fix compass error; pinch to fit the zoom. The alignment is saved per device.
+- **Camera mode**: rear camera plus device orientation. Heading, pitch and roll come from the W3C rotation matrix; on iOS the heading comes from `webkitCompassHeading`.
+- **Auto-align**: phone compasses drift by 5–15°, more near buildings. `public/align.js` finds the sky/terrain boundary in the camera frame (contrast in 2·B − R, so blue sky stands out from rock and forest). It then searches heading, pitch and zoom corrections until the computed far skyline sits on that boundary. The first lock searches ±25° and must beat every other fit by a clear margin. After that, it tracks drift every 0.6 s. Dragging turns it off; "Reset alignment" turns it back on.
 
 ## Peak data
 

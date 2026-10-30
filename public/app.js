@@ -1,5 +1,7 @@
 // Summits — main thread: UI, rendering, sensors.
 
+import { skylineOf, grabFrame, align } from "./align.js";
+
 const DEG = Math.PI / 180;
 const $ = (s) => document.querySelector(s);
 const canvas = $("#view");
@@ -32,6 +34,7 @@ const state = {
     heading: 0, pitch: 0, roll: 0, have: false,
     offH: store.get("offH", 0), offP: store.get("offP", 0), fov: store.get("fovScale", 1),
     basePpd: 10, iosOffset: null,
+    auto: store.get("autoAlign", true), locked: false,
   },
   labels: [], // last drawn labels for hit testing (CSS px)
   dpr: 1,
@@ -125,6 +128,8 @@ async function loadView(loc) {
     );
     if (seq !== loadSeq) return;
     state.pano = prepPano(res);
+    state.sky = skylineOf(res);
+    state.cam.locked = false;
     state.peaks = res.peaks;
     hideProgress();
     const meta = `${Math.round(res.h0)} m · ${res.peaks.length} peaks in view · ${state.range} km`;
@@ -441,6 +446,7 @@ canvas.addEventListener("pointermove", (e) => {
       const uy = -dx * Math.sin(r) + dy * Math.cos(r);
       state.cam.offH -= ux / v.ppd;
       state.cam.offP += uy / v.ppd;
+      if (state.cam.auto && Math.hypot(e.clientX - pt.x0, e.clientY - pt.y0) > 12) setAuto(false);
     } else {
       state.view.heading -= dx / v.ppd;
       state.view.pitch += dy / v.ppd;
@@ -619,8 +625,54 @@ $("#btn-cam").onclick = () => (state.mode === "camera" ? stopCamera() : startCam
 $("#cam-reset").onclick = () => {
   state.cam.offH = 0; state.cam.offP = 0; state.cam.fov = 1;
   store.set("offH", 0); store.set("offP", 0); store.set("fovScale", 1);
+  setAuto(true);
   requestRender();
 };
+$("#cam-auto").onclick = () => setAuto(!state.cam.auto);
+
+// ---------- Auto-alignment ----------
+// Every ~0.6 s, fit the computed skyline to the camera frame and nudge the
+// heading, pitch and zoom corrections toward the fit. The first fit searches
+// wide (compasses can be 20° off); once locked, it only tracks small drift.
+let autoTimer = null;
+function setAuto(on) {
+  state.cam.auto = on;
+  state.cam.locked = false;
+  store.set("autoAlign", on);
+  updateAutoUi();
+}
+function updateAutoUi() {
+  const c = state.cam;
+  $("#cam-auto").textContent = c.auto ? "Auto-align: on" : "Auto-align: off";
+  $("#cam-auto").classList.toggle("on", c.auto);
+  $(".hint").textContent = !c.auto
+    ? "Drag to align the lines with the ridges. Pinch to fit the zoom."
+    : c.locked ? "Locked on the skyline. Drag to adjust by hand." : "Point at the mountains to align on the skyline…";
+}
+function autoStep() {
+  const c = state.cam;
+  if (state.mode !== "camera" || !c.auto || !c.have || !state.sky || pointers.size) return;
+  const frame = grabFrame(video);
+  if (!frame) return;
+  const sensor = { heading: c.heading, pitch: c.pitch, roll: c.roll, basePpd: c.basePpd };
+  const view = { W: window.innerWidth, H: window.innerHeight };
+  // Locked: track small drift. Not locked: search wide, and only accept a
+  // fit that clearly beats every fit elsewhere.
+  const r = c.locked
+    ? align(frame, state.sky, sensor, c, view, { spanH: 3, spanP: 1.5, fixFov: true, minScore: 35 })
+    : align(frame, state.sky, sensor, c, view, { spanH: 25, spanP: 5, minScore: 45, minMargin: 6 });
+  if (!r) return;
+  if (!r.ok) { c.misses = (c.misses || 0) + 1; if (c.misses > 5 && c.locked) { c.locked = false; updateAutoUi(); } return; }
+  c.misses = 0;
+  // Ease toward the fit; snap on the first lock.
+  const k = c.locked ? 0.5 : 1;
+  c.offH += wrap180(r.offH - c.offH) * k;
+  c.offP += (r.offP - c.offP) * k;
+  c.fov += (r.fov - c.fov) * k;
+  if (!c.locked) { c.locked = true; updateAutoUi(); }
+  store.set("offH", c.offH); store.set("offP", c.offP); store.set("fovScale", c.fov);
+  requestRender();
+}
 
 async function startCamera() {
   try {
@@ -649,11 +701,16 @@ async function startCamera() {
   if ("ondeviceorientationabsolute" in window) window.addEventListener("deviceorientationabsolute", onOrient);
   else window.addEventListener("deviceorientation", onOrient);
   updateCamFov();
+  state.cam.locked = false;
+  updateAutoUi();
+  clearInterval(autoTimer);
+  autoTimer = setInterval(autoStep, 600);
   setTimeout(() => { if (!state.cam.have) toast("No compass data. Camera mode needs a phone with motion sensors.", 6000); }, 2500);
   requestRender();
 }
 
 function stopCamera() {
+  clearInterval(autoTimer);
   window.removeEventListener("deviceorientationabsolute", onOrient);
   window.removeEventListener("deviceorientation", onOrient);
   if (stream) for (const t of stream.getTracks()) t.stop();
@@ -676,9 +733,10 @@ video.addEventListener("loadedmetadata", updateCamFov);
 function updateCamFov() {
   const vw = video.videoWidth, vh = video.videoHeight;
   const W = window.innerWidth, H = window.innerHeight;
-  if (!vw || !vh) { state.cam.basePpd = Math.max(W, H) / 67; return; }
-  // Assume a typical phone main camera: ~67° across the long side of the frame.
-  const f = Math.max(vw, vh) / 2 / Math.tan((67 / 2) * DEG);
+  if (!vw || !vh) { state.cam.basePpd = Math.max(W, H) / 75; return; }
+  // Assume a typical phone main camera: ~75° across the long side of a 16:9
+  // video frame (measured on an iPhone). Auto-align fits the rest.
+  const f = Math.max(vw, vh) / 2 / Math.tan((75 / 2) * DEG);
   const s = Math.max(W / vw, H / vh); // object-fit: cover
   state.cam.basePpd = f * s * DEG;
 }
